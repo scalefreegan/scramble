@@ -1,0 +1,26 @@
+# requires python 3.5
+
+import glob
+import os
+import sys
+from snakemake.utils import report
+
+configfile: "config.json"
+
+def getSubdirs(x):
+    dirs = [ item for item in os.listdir(x) if os.path.isdir(os.path.join(x, item)) ]
+    return(dirs)
+
+SUBDIRS = getSubdirs(config["dir"])
+
+localrules: all
+
+rule all:
+    input:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+
+rule mkdirs:
+    input:
+    output: expand(config["logs"] + "{}.log", thisdir = SUBDIRS)
+    shell:
+        find $1 -type f -name '*.tmp' -print0 | while read -d $'\0' f; do mv "$f" "${f%.tmp}"; done

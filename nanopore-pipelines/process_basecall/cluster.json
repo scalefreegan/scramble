@@ -1,0 +1,81 @@
+{
+  "__default__" :
+  {
+    "sbatch" : "sbatch -o slurm/{rule}.{wildcards}.%j.out -e error/{rule}.{wildcards}.%j.out",
+    "partition" : "htc",
+    "n" : "{threads}",
+    "mem" : "4G",
+    "time" : "1:00:00",
+    "moreoptions" : ""
+  },
+  "guppy" :
+  {
+    "time" : "24:00:00",
+    "mem" : "16G"
+  },
+  "compressReads" :
+  {
+    "time" : "12:00:00",
+    "mem" : "1G"
+  },
+  "mergeFastq" :
+  {
+    "time" : "4:00:00",
+    "mem" : "1G"
+  },
+  "mergeSeqSummary" :
+  {
+    "time" : "2:00:00",
+    "mem" : "1G"
+  },
+  "porechop" :
+  {
+    "time" : "24:00:00",
+    "mem" : "24G"
+  },
+  "qFilter" :
+  {
+    "time" : "4:00:00",
+    "mem" : "1G"
+  },
+  "qc" :
+  {
+    "time" : "6:00:00",
+    "mem" : "12G"
+  },
+  "correct_canu" :
+  {
+    "time" : "72:00:00",
+    "mem" : "56G"
+  },
+  "align" :
+  {
+    "time" : "12:00:00",
+    "mem" : "12G"
+  },
+  "countStrandErrorCov" :
+  {
+    "time" : "12:00:00",
+    "mem" : "12G"
+  },
+  "distinguish" :
+  {
+    "time" : "6:00:00",
+    "mem" : "4G"
+  },
+  "makeTranscriptome" :
+  {
+    "time" : "48:00:00",
+    "mem" : "56G"
+  },
+  "salmon" :
+  {
+    "time" : "6:00:00",
+    "mem" : "4G"
+  },
+  "backup" :
+  {
+    "time" : "12:00:00",
+    "mem" : "1G"
+  }
+}

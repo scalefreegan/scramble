@@ -1,0 +1,315 @@
+# requires python 3.5
+
+# test
+
+import glob
+import os
+import pandas as pd
+import sys
+from snakemake.utils import report
+
+sys.path.append("/g/steinmetz/project/IESY/software/scrambleTools/")
+from scrambleTools import scrambletools
+
+configfile: "config.json"
+
+def getSubdirs(x):
+    dirs = [ item for item in os.listdir(x) if os.path.isdir(os.path.join(x, item)) ]
+    return(dirs)
+
+def checkDir(wildcards):
+    thisdir_pass = config["passdir"] + "/{}".format(wildcards.subdir)
+    thisdir_fail = config["faildir"] + "/{}".format(wildcards.subdir)
+    o = []
+    if os.path.isdir(thisdir_pass):
+        o.append(thisdir_pass)
+    if os.path.isdir(thisdir_fail):
+        o.append(thisdir_fail)
+    return(o)
+
+def getTmpdir(wildcards):
+    if "TMPDIR" not in os.environ:
+        os.environ["TMPDIR"] = "/tmpdata/brooks"
+        return("/tmpdata/brooks")
+    else:
+        return(os.environ["TMPDIR"])
+
+def getSubinfo(wildcards):
+    return("{}_{}_{}".format(config["strain"], config["date"], wildcards.subdir))
+
+PASS_SUBDIRS = getSubdirs(config["passdir"])
+if config["faildir"] != "":
+    FAIL_SUBDIRS = getSubdirs(config["faildir"])
+    for i in FAIL_SUBDIRS:
+        if i not in PASS_SUBDIRS:
+            PASS_SUBDIRS.append(i)
+    SUBDIRS = [PASS_SUBDIRS.append(i) for i in FAIL_SUBDIRS]
+SUBDIRS = PASS_SUBDIRS
+#print(SUBDIRS)
+
+
+localrules: all, mkdirs, move,
+            moveFinished, mergeSeqSummary,
+            minimapIndex, cleanup
+
+rule all:
+    input:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+
+rule mkdirs:
+    input:
+    output:
+        ruledir = config["tmpdir"] + "/{}_{}/logs/mkdirs.log".format(config["strain"], config["date"])
+    params:
+        copydir = config["tmpdir"] + "/{}_{}".format(config["strain"], config["date"])
+    shell:
+        #"mkdir -p {params.copydir} && "
+        #"cp -R {input} {params.copydir} && "
+        "mkdir -p {params.copydir}/logs && "
+        "mkdir -p {params.copydir}/tmp/fastq/pass && "
+        "mkdir -p {params.copydir}/tmp/fastq/fail && "
+        "mkdir -p {params.copydir}/tmp/fast5/pass && "
+        "mkdir -p {params.copydir}/tmp/fast5/fail && "
+        "mkdir -p {params.copydir}/tmp/summary && "
+        "mkdir -p {params.copydir}/qc && "
+        "echo 'made dirs' > {output.ruledir}"
+
+rule albacore:
+    input:
+        config["tmpdir"] + "/{}_{}/logs/mkdirs.log".format(config["strain"], config["date"])
+    output:
+        log = config["tmpdir"] + "/{}_{}/logs/{{subdir}}.albacore.log".format(config["strain"], config["date"])
+    params:
+        flowcell = config["flowcell"],
+        kit = config["kit"],
+        readdirs = checkDir,
+        localtmp = getTmpdir,
+        subinfo = getSubinfo,
+        outdir = config["tmpdir"] + "/{}_{}/basecalled/{{subdir}}".format(config["strain"], config["date"])
+    threads: 15
+    shell:
+        "source activate albacore && "
+        "mkdir -p {params.localtmp}/{params.subinfo} && "
+        "cp -R {params.readdirs} {params.localtmp}/{params.subinfo} && "
+        "read_fast5_basecaller.py --flowcell {params.flowcell} --kit {params.kit} "
+         "--worker_threads {threads} "
+         "--recursive "
+         "--output_format fastq,fast5 "
+         "--files_per_batch_folder 0 "
+         "--reads_per_fastq_batch 0 "
+         "--input {params.localtmp}/{params.subinfo} "
+         "--save_path {params.outdir} && "
+         "echo 'finished basecalling' > {output.log}"
+
+rule move:
+    input:
+        config["tmpdir"] + "/{}_{}/logs/{{subdir}}.albacore.log".format(config["strain"], config["date"])
+    output:
+        config["tmpdir"] + "/{}_{}/logs/{{subdir}}.move.log".format(config["strain"], config["date"])
+    params:
+        datadir = config["tmpdir"] + "/{}_{}/basecalled/{{subdir}}".format(config["strain"], config["date"]),
+        outdir = config["tmpdir"] + "/{}_{}/".format(config["strain"], config["date"])
+    threads: 1
+    shell:
+        """
+        if [ -d {params.datadir}/workspace/pass ]
+        then
+            if [ -f {params.datadir}/workspace/pass/*.fastq ]
+            then
+                cat {params.datadir}/workspace/pass/*.fastq > {params.outdir}/tmp/fastq/pass/{wildcards.subdir}.fastq
+            fi
+        fi &&
+
+        if [ -d {params.datadir}/workspace/fail ]
+        then
+            if [ -f {params.datadir}/workspace/fail/*.fastq ]
+            then
+                cat {params.datadir}/workspace/fail/*.fastq > {params.outdir}/tmp/fastq/fail/{wildcards.subdir}.fastq
+            fi
+        fi
+
+        if [ -d {params.datadir}/workspace/pass ]
+        then
+            if [[ -n $(find {params.datadir}/workspace/pass/ -name *.fast5) ]]
+            then
+                ln -s {params.datadir}/workspace/pass/*.fast5 {params.outdir}/tmp/fast5/pass/{wildcards.subdir}
+            fi
+        fi &&
+
+        if [ -d {params.datadir}/workspace/fail ]
+        then
+            if [[ -n $(find {params.datadir}/workspace/fail/ -name *.fast5) ]]
+            then
+                ln -s {params.datadir}/workspace/fail/*.fast5 {params.outdir}/tmp/fast5/fail/{wildcards.subdir}
+            fi
+        fi
+
+        if [ -n $(find {params.datadir} -name 'sequencing_summary.txt') ]
+        then
+            cp {params.datadir}/sequencing_summary.txt \
+            {params.outdir}/tmp/summary/sequencing_summary_{wildcards.subdir}.txt
+        fi &&
+
+        echo 'finished moving' > {output}
+        """
+
+rule moveFinished:
+    input:
+        expand(config["tmpdir"] + "/{}_{}/logs/{{subdir}}.move.log".format(config["strain"], config["date"]), subdir = SUBDIRS)
+    output:
+        config["tmpdir"] + "/{}_{}/logs/move_finished.log".format(config["strain"], config["date"])
+    shell:
+        "echo 'finished moving everything' > {output}"
+
+rule mergeFastq:
+    input:
+        config["tmpdir"] + "/{}_{}/logs/move_finished.log".format(config["strain"], config["date"])
+    output:
+        thispass = config["tmpdir"] + "/{}_{}/fastq/{}_{}_pass.fastq".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        thisfail = config["tmpdir"] + "/{}_{}/fastq/{}_{}_fail.fastq".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        log = config["tmpdir"] + "/{}_{}/logs/mergeFastq.log".format(config["strain"], config["date"])
+
+    params:
+        thispass = config["tmpdir"] + "/{}_{}/tmp/fastq/pass".format(config["strain"], config["date"]),
+        thisfail = config["tmpdir"] + "/{}_{}/tmp/fastq/fail".format(config["strain"], config["date"])
+    threads: 1
+    shell:
+        "cat {params.thispass}/*.fastq > {output.thispass} && "
+        "cat {params.thisfail}/*.fastq > {output.thisfail} && "
+        "echo '' > {output.log}"
+
+rule mergeFast5:
+    input:
+        config["tmpdir"] + "/{}_{}/logs/move_finished.log".format(config["strain"], config["date"])
+    output:
+        thispass = config["tmpdir"] + "/{}_{}/fast5/{}_{}_pass.tgz".format(config["strain"], config["date"],
+                                                                           config["strain"], config["date"]),
+        thisfail = config["tmpdir"] + "/{}_{}/fast5/{}_{}_fail.tgz".format(config["strain"], config["date"],
+                                                                           config["strain"], config["date"]),
+        log = config["tmpdir"] + "/{}_{}/logs/mergeFast5.log".format(config["strain"], config["date"])
+    params:
+        thispass = config["tmpdir"] + "/{}_{}/tmp/fast5/pass".format(config["strain"], config["date"]),
+        thisfail = config["tmpdir"] + "/{}_{}/tmp/fast5/fail".format(config["strain"], config["date"]),
+        tmpdir = config["tmpdir"] + "/{}_{}".format(config["strain"], config["date"])
+    threads: 1
+    shell:
+        "tar --dereference -czvf {output.thispass} {params.thispass} && "
+        "tar --dereference -czvf {output.thisfail} {params.thisfail} && "
+        "echo '' > {output.log}"
+
+rule mergeSeqSummary:
+    input:
+        config["tmpdir"] + "/{}_{}/logs/move_finished.log".format(config["strain"], config["date"])
+    output:
+        config["tmpdir"] + "/{}_{}/qc/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    params:
+        datadir = config["tmpdir"] + "/{}_{}/tmp/summary".format(config["strain"], config["date"])
+    threads: 1
+    run:
+        df = pd.concat([pd.read_csv(i,sep="\t") for i in glob.glob(str(params["datadir"]) + "/sequencing_summary*")])
+        df.to_csv(output[0], sep = "\t", header = True, index = False)
+
+rule porechop:
+    input:
+        config["tmpdir"] + "/{}_{}/fastq/{}_{}_pass.fastq".format(config["strain"], config["date"],
+                                                                  config["strain"], config["date"])
+    output:
+        config["tmpdir"] + "/{}_{}/fastq/{}_{}_pass_porechopped.fastq".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    threads: 24
+    shell:
+        "source activate nanopore && "
+        "porechop -i {input} "
+    	"-o {output} "
+    	"--threads {threads} "
+    	"--verbosity 1"
+
+rule qc:
+    input:
+        sequencing_summary = config["tmpdir"] + "/{}_{}/qc/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    output:
+        log = config["tmpdir"] + "/{}_{}/logs/qc.log".format(config["strain"], config["date"])
+    params:
+        minionqc = "/g/steinmetz/project/IESY/software/nanotools/minion_qc/MinIONQC.R",
+        outdir = config["tmpdir"] + "/{}_{}/qc/".format(config["strain"], config["date"])
+    threads: 1
+    shell:
+        "source activate nanopore && "
+        "Rscript {params.minionqc} -p {threads} -i {input.sequencing_summary} -o {params.outdir} && "
+        "echo 'qc finished' > {output.log}"
+
+rule minimapIndex:
+    input: config["genome"]
+    output: config["genomebase"] + ".mmi"
+    shell:
+        "minimap2 -d {output} {input}"
+
+rule align:
+    input:
+        config["tmpdir"] + "/{}_{}/fastq/{}_{}_pass_porechopped.fastq".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    output:
+        config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped.bam".format(config["strain"], config["date"],
+                                                                               config["strain"], config["date"])
+    threads: 24
+    params:
+        genome = config["genome"],
+        nsup = 50,
+        optional = config["minimap_optional"]
+    shell:
+        "minimap2 -ax splice -k14 -t {threads} -N {params.nsup} "
+        "{params.optional} {params.genome} -G 1500 "
+    	"{input} | samtools view -bS - | samtools sort - -o {output} && "
+        "samtools index {output}"
+
+rule bam2bed:
+    input:
+        config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped.bam".format(config["strain"], config["date"],
+                                                                               config["strain"], config["date"])
+    output:
+        config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped.bed".format(config["strain"], config["date"],
+                                                                               config["strain"], config["date"])
+
+    shell:
+        "bedtools bamtobed -i {input} "
+        "> {output}"
+
+rule distinguish:
+    input:
+        bam = config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped.bam".format(config["strain"], config["date"],
+                                                                                     config["strain"], config["date"])
+    output:
+        bam = config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped_distinguished.bam".format(config["strain"], config["date"],
+                                                                                                   config["strain"], config["date"])
+    threads: 1
+    run:
+        scrambletools.bestScoreSam(input["bam"], output["bam"])
+
+rule cleanup:
+    input:
+        bam = config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped_distinguished.bam".format(config["strain"], config["date"],
+                                                                                                   config["strain"], config["date"]),
+        bed = config["tmpdir"] + "/{}_{}/alignment/{}_{}_pass_porechopped.bed".format(config["strain"], config["date"],
+                                                                                     config["strain"], config["date"]),
+        qc = config["tmpdir"] + "/{}_{}/logs/qc.log".format(config["strain"], config["date"]),
+        summary = config["tmpdir"] + "/{}_{}/qc/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        mergefast5_log = config["tmpdir"] + "/{}_{}/logs/mergeFast5.log".format(config["strain"], config["date"])
+    params:
+        tmpdir = config["tmpdir"] + "/{}_{}".format(config["strain"], config["date"]),
+        datadir = config["datadir"] + "/{}_{}".format(config["strain"], config["date"]),
+        resultsdir = config["resultsdir"] + "/{}_{}".format(config["strain"], config["date"]),
+        backupdir = config["backupdir"] + "/{}_{}".format(config["strain"], config["date"])
+    output:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+    shell:
+        "mkdir -p {params.datadir} && "
+        "cp -R {params.tmpdir}/fastq {params.tmpdir}/fast5 {params.tmpdir}/tmp/summary {params.tmpdir}/qc {params.datadir} && "
+        "tar --dereference -czf {params.backupdir}.tgz {params.datadir} && "
+        "cp -R {params.tmpdir}/alignment {params.tmpdir}/logs {params.resultsdir} && "
+        "rm -rf {params.tmpdir} && "
+        "echo 'all done' > {output}"

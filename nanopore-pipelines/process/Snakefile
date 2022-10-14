@@ -1,0 +1,458 @@
+# requires python 3.5
+# should be in nanopore conda env!
+
+import glob
+import os
+import pandas as pd
+import pysam
+import sys
+from snakemake.utils import report
+import tarfile
+import pybedtools
+
+sys.path.append("/g/steinmetz/project/IESY/software/scrambleTools/")
+from scrambleTools import scrambletools
+
+configfile: "config.json"
+
+def getTmpdir(wildcards):
+    if "TMPDIR" not in os.environ:
+        os.environ["TMPDIR"] = "/tmpdata/brooks"
+        return("/tmpdata/brooks")
+    else:
+        return(str(os.environ["TMPDIR"]))
+
+def getReads(wildcards):
+    tarf = config["datadir"] + "/{}_{}".format(config["strain"], config["date"]) + "/fast5.tgz"
+    print("finding reads")
+    if (os.path.isfile(tarf)) | (os.path.islink(tarf)):
+        return("None")
+    else:
+        thisdir = config["base"]
+        reads = glob.glob(thisdir + "/**/*.fast5", recursive=True)
+        if len(reads) == 0:
+        #reads = [i.lstrip("./") for i in reads]
+            backup = config["backupdir"] + "/{}_{}.tgz".format(config["strain"], config["date"])
+            if os.path.isfile(backup):
+                print("Extracting from {}".format(backup))
+                fast5dir = "/scratch/brooks/fast5/{}_{}".format(config["strain"], config["date"])
+                if not os.path.isdir(fast5dir):
+                    shell("mkdir -p {}".format(fast5dir))
+                shell("tar -xzvf {} -C {} ./fast5.tgz".format(backup, fast5dir))
+                shell("ln -s {}/fast5.tgz ".format(fast5dir) + config["datadir"] +
+                      "/{}_{}/fast5.tgz".format(config["strain"], config["date"]))
+            return("None")
+        else:
+            return(reads)
+
+def getFastq(wildcards):
+    thisdir = config["base"]
+    fastq = glob.glob(thisdir + "/**/*.fastq", recursive=True)
+    #fastq = [i.lstrip("./") for i in fastq]
+    return(fastq)
+
+def getSummary(wildcards):
+    thisdir = config["base"]
+    seqsummary = glob.glob(thisdir + "/**/*sequencing_summary.txt", recursive=True)
+    #seqsummary = [i.lstrip("./") for i in seqsummary]
+    return(seqsummary)
+
+def translateStrain(wildcards):
+    if config["strain"] == "BY4741":
+        return("S288C")
+    elif config["strain"] == "SLS045":
+        return("S288C")
+    else:
+        return(config["strain"])
+
+def translateAnnotations(wildcards):
+    base = "/g/steinmetz/project/IESY/genomes/annotations/scramble/bed/{}_genes.bed"
+    if config["strain"] == "BY4741":
+        return(base.format("S288C"))
+    elif config["strain"] == "SLS045":
+        return(base.format("S288C"))
+    else:
+        return(base.format(config["strain"]))
+
+localrules: all, minimapIndex, salmonIndex, cleanup, backup
+
+rule all:
+    input:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+
+rule compressReads:
+    input: getReads
+    output: config["datadir"] + "/{}_{}".format(config["strain"], config["date"]) + "/fast5.tgz"
+    threads: 8
+    run:
+        thisdir = os.path.dirname(os.path.commonprefix(input))
+        #print(thisdir)
+        shell("tar --dereference -cf - -C " + thisdir + " . | pigz -p {threads} > {output}")
+
+
+rule mergeFastq:
+    input: getFastq
+    output:
+        (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/fastq/{}_{}.fastq".format(config["strain"], config["date"]))
+    shadow: "shallow"
+    shell:
+        """
+        cat {input} > {output}_tmp &&
+        seqkit seq --rna2dna {output}_tmp > {output}
+        rm {output}_tmp
+        """
+
+rule mergeSeqSummary:
+    input:
+        getSummary
+    output:
+        (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"]))
+    run:
+        df = pd.concat([pd.read_csv(i,sep="\t") for i in input])
+        df.to_csv(output[0], sep = "\t", header = True, index = False)
+
+rule porechop:
+    input:
+        fastq = (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/fastq/{}_{}.fastq".format(config["strain"], config["date"]))
+    output:
+        fastqout = config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped.fastq".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        table = config["resultsdir"] + "/{}_{}/tables/{}_{}_porechopped.table".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        log = config["resultsdir"] + "/{}_{}/logs/porechop.log".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    threads: 24
+    run:
+        def grepTable(x, word = ""):
+            regex = re.compile(word)
+            with open(x,'r') as f:
+                for i in f.readlines():
+                    if re.search(regex, i):
+                        return(True)
+            return(False)
+
+        if os.stat(input["fastq"]).st_size > 0:
+            shell(
+                "/g/steinmetz/brooks/anaconda/envs/nanopore/bin/porechop -i {input.fastq} " +
+            	"-o {output.fastqout} " +
+            	"--threads {threads} " +
+                "--extra_end_trim 0 " +
+                "--discard_middle  " +
+            	"--verbosity 4 > {output.table}_tmp"
+            )
+            if grepTable(output["table"]+"_tmp","^<table>$"):
+                shell(
+                    "csplit {output.table}_tmp '/^<table>$/' '{{1}}'"
+                )
+                if os.path.isfile("xx01"):
+                    shell(
+                        "mv xx01 {output.table} && " +
+                        "cat xx00 xx02 > {output.log} && " +
+                        "rm xx* {output.table}_tmp"
+                    )
+            else:
+                shell("mv {output.table}_tmp {output.table}")
+        shell("touch {output}")
+
+rule qFilter:
+    input:
+        config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped.fastq".format(config["strain"], config["date"],
+                                                                          config["strain"], config["date"])
+    output:
+        config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped_filtered.fastq".format(config["strain"], config["date"],
+                                                                          config["strain"], config["date"])
+    shadow: "shallow"
+    shell:
+        "fastp --disable_adapter_trimming --qualified_quality_phred 6 -i {input} -o {output}"
+
+rule qc:
+    input:
+        (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"]))
+    output:
+        log = config["resultsdir"] + "/{}_{}/logs/qc.log".format(config["strain"], config["date"])
+    params:
+        minionqc = "/g/steinmetz/project/IESY/software/nanotools/minion_qc/MinIONQC.R",
+        outdir = config["resultsdir"] + "/{}_{}/qc/".format(config["strain"], config["date"])
+    threads: 1
+    shell:
+        #"source activate nanopore && "
+        "mkdir -p {params.outdir} && "
+        "Rscript {params.minionqc} -p {threads} -i {input} -o {params.outdir} && "
+        "echo 'qc finished' > {output.log}"
+
+rule correct_canu:
+    input:
+        config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped_filtered.fastq".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    output:
+        fastaout = config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped_filtered_canuCorrected.fasta".format(config["strain"], config["date"],
+                                                                                                    config["strain"], config["date"]),
+    params:
+        tmpdir = getTmpdir
+    threads: 24
+    run:
+        if os.stat(input[0]).st_size > 0:
+            shell(
+                "cd {params.tmpdir} && " +
+                "/g/steinmetz/brooks/git/canu/Linux-amd64/bin/canu -correct " +
+                     "-nanopore-raw " +
+                     "{input} " +
+                     "-p canu_{}_{} ".format(config["strain"], config["date"]) +
+                     "-d canu_{}_{} ".format(config["strain"], config["date"]) +
+                     "minReadLength=200 " + #are these actually used?
+                     "minOverlapLength=150 " + #are these actually used?
+                     "genomeSize=12M " +
+                     "maxThreads={threads} " +
+                     "useGrid=False " +
+                     "corErrorRate=0.3 " +
+                     "corMinEvidenceLength=150 " +
+                     "corMinCoverage=0 " +
+                     "corOutCoverage=100 " +
+                     "overlapper=minimap " +
+                     "stopOnLowCoverage=0 "
+            )
+            shell("cd {params.tmpdir} && " +
+                  "gunzip canu_{}_{}/canu_{}_{}.correctedReads.fasta.gz".format(config["strain"], config["date"],
+                                                                                config["strain"], config["date"]))
+            shell("cd {params.tmpdir} && " +
+                  "mv canu_{}_{}/canu_{}_{}.correctedReads.fasta {}".format(config["strain"], config["date"],
+                                                                               config["strain"], config["date"],
+                                                                               output.fastaout))
+        else:
+            shell("touch {output.fastaout}")
+
+rule minimapIndex:
+    input: config["genome"]
+    output: config["genomebase"] + ".mmi"
+    run:
+        "minimap2 -d {output} {input}"
+
+rule align:
+    input:
+        fasta1 = config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped_filtered_canuCorrected.fasta".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        fastq2 = (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+                 + "/fastq/{}_{}.fastq".format(config["strain"], config["date"]))
+    output:
+        bam1 = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        bam2 = config["resultsdir"] + "/{}_{}/alignment/{}_{}_original.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    threads: 24
+    params:
+        genome = config["genome"],
+        nsup = 50,
+        optional = config["minimap_optional"]
+    shell:
+        "minimap2 -ax splice -k14 -t {threads} -N {params.nsup} "
+        "{params.optional} {params.genome} -G 1500 "
+    	"{input.fasta1} | samtools view -bS - | samtools sort - -o {output.bam1} && "
+        "samtools index {output.bam1} && "
+        "samtools stats {output.bam1} > {output.bam1}.stats && "
+        "minimap2 -ax splice -k14 -t {threads} -N {params.nsup} "
+        "{params.optional} {params.genome} -G 1500 "
+    	"{input.fastq2} | samtools view -bS - | samtools sort - -o {output.bam2} && "
+        "samtools index {output.bam2} && "
+        "samtools stats {output.bam2} > {output.bam2}.stats"
+
+rule countStrandErrorCov:
+    input:
+        original_bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_original.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        corrected_bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    output:
+        config["resultsdir"] + "/{}_{}/qc/strandANDerror.txt".format(config["strain"], config["date"])
+    threads: 1
+    params:
+        original_bamstats = config["resultsdir"] + "/{}_{}/alignment/{}_{}_original.bam.stats".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        corrected_bamstats = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected.bam.stats".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        annotations = translateAnnotations,
+        strain = translateStrain,
+        correction_methods = ["canu"]
+    run:
+        print(params.strain)
+        scrambletools.countStrandErrorCov(input.original_bam, params.original_bamstats,
+                     [input.corrected_bam], [params.corrected_bamstats],
+                     params.correction_methods,
+                     params.annotations, params.strain, save = output[0])
+
+rule distinguish:
+    input:
+        bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected.bam".format(config["strain"], config["date"],
+                                                                                      config["strain"], config["date"])
+    output:
+        bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bam".format(config["strain"], config["date"],
+                                                                                                   config["strain"], config["date"])
+    threads: 1
+    shadow: "shallow"
+    run:
+        if os.stat(input["bam"]).st_size > 0:
+            inbam = pysam.AlignmentFile(input["bam"], "rb", check_sq=False)
+            if inbam.count() > 0:
+                scrambletools.bestScoreSam(input["bam"], "tmp.bam")
+                cmd = ["samtools", "sort", "tmp.bam", "-o", output["bam"]]
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+                stdout, stderr = p.communicate()
+                if p.returncode:
+                    raise ValueError('error: %s' % stderr)
+                cmd2 = ["samtools", "index", output["bam"]]
+                p2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+                stdout, stderr = p2.communicate()
+                if p2.returncode:
+                    raise ValueError('error: %s' % stderr)
+            else:
+                with open(output["bam"], 'w') as f:
+                    f.close()
+        else:
+            shell("touch {output.bam}")
+
+rule bam2bed:
+    input:
+        config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bam".format(config["strain"], config["date"],
+                                                                                                   config["strain"], config["date"])
+    output:
+        config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bed".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+
+    shell:
+        "bedtools bamtobed -i {input} "
+        "> {output}"
+
+rule makeTranscriptome:
+    input:
+        bed = config["annotations"],
+        fa = config["genome"],
+        readbed = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bed".format(config["strain"],config["date"],
+                                                                               config["strain"], config["date"])
+    output:
+        fasta = config["resultsdir"] + "/{}_{}/transcriptomes/{}_ercc_sirv.fasta".format(config["strain"],config["date"],config["strain"]),
+        bed = config["resultsdir"] + "/{}_{}/transcriptomes/{}_ercc_sirv.bed".format(config["strain"],config["date"],config["strain"])
+    params:
+        ercc = "/g/steinmetz/project/IESY/genomes/ercc_sirv/ERCCs_SIRV_transcripts.fa",
+        cov_cutoff = 2,
+        stranded = True,
+        slop = None,
+        tmpdir = getTmpdir,
+	    save = config["resultsdir"] + "/{}_{}/transcriptomes/{}_ercc_sirv".format(config["strain"],config["date"],config["strain"])
+    threads: 32
+    run:
+        pybedtools.set_tempdir(params["tmpdir"])
+        scrambletools.bed2fa(input["bed"], input["fa"], params["save"],
+                    features2keep = None, ercc = params["ercc"],
+                    slop = params["slop"], readbed = input["readbed"],
+                    stranded = params["stranded"], cov_cutoff = params["cov_cutoff"],
+                    max_seed_dist = None, genome = None, cores = threads,
+                    verbose = True)
+
+rule salmonIndex:
+    input: config["resultsdir"] + "/{}_{}/transcriptomes/{}_ercc_sirv.fasta".format(config["strain"],config["date"],config["strain"]),
+    output: directory(config["resultsdir"] + "/{}_{}/salmonIndex/{}.salmonIndex".format(config["strain"],config["date"],config["strain"]))
+    params:
+        k = 31
+    threads: 1
+    shell:
+        "salmon index -t {input} "
+        "-i {output} "
+        "--threads {threads} -k {params.k}"
+
+rule salmon:
+    input:
+        reads_corrected = config["resultsdir"] + "/{}_{}/fastq/{}_{}_porechopped_filtered_canuCorrected.fasta".format(config["strain"], config["date"],
+                                                                                                config["strain"], config["date"]),
+        reads_original = config["datadir"] + "/{}_{}/fastq/{}_{}.fastq".format(config["strain"], config["date"],
+                                                                  config["strain"], config["date"]),
+        index = config["resultsdir"] + "/{}_{}/salmonIndex/{}.salmonIndex".format(config["strain"],config["date"],config["strain"])
+    output:
+        out_corrected = config["resultsdir"] + "/{}_{}/salmon/corrected/quant.sf".format(config["strain"], config["date"]),
+        out_original = config["resultsdir"] + "/{}_{}/salmon/original/quant.sf".format(config["strain"], config["date"])
+    params:
+        mappings_corrected = config["resultsdir"] + "/{}_{}/salmon/corrected/mappings.sam".format(config["strain"], config["date"]),
+        outdir_corrected = config["resultsdir"] + "/{}_{}/salmon/corrected/".format(config["strain"], config["date"]),
+        mappings_original = config["resultsdir"] + "/{}_{}/salmon/original/mappings.sam".format(config["strain"], config["date"]),
+        outdir_original = config["resultsdir"] + "/{}_{}/salmon/original/".format(config["strain"], config["date"])
+    threads: 24
+    shell:
+        "salmon quant -i {input.index} "
+        "-l MSF "
+        "-r {input.reads_corrected} "
+        "--dumpEq "
+        "--writeMappings={params.mappings_corrected} "
+        "--numBootstraps 100 "
+        "--seqBias "
+        "--posBias "
+        "--validateMappings "
+        "-p {threads} "
+        "--minAssignedFrags 1 "
+        "-o {params.outdir_corrected} &&"
+        "salmon quant -i {input.index} "
+        "-l MSF "
+        "-r {input.reads_original} "
+        "--dumpEq "
+        "--writeMappings={params.mappings_original} "
+        "--numBootstraps 100 "
+        "--seqBias "
+        "--posBias "
+        "--validateMappings "
+        "-p {threads} "
+        "--minAssignedFrags 1 "
+        "-o {params.outdir_original}"
+
+rule backup:
+    input:
+        reads = config["datadir"] + "/{}_{}".format(config["strain"], config["date"]) + "/fast5.tgz",
+        salmon = config["resultsdir"] + "/{}_{}/salmon/corrected/quant.sf".format(config["strain"], config["date"]),
+        bed = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bed".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        qc = config["resultsdir"] + "/{}_{}/qc/strandANDerror.txt".format(config["strain"], config["date"])
+    output:
+        backup = config["backupdir"] + "/{}_{}.tgz".format(config["strain"], config["date"])
+    params:
+        datadir = config["datadir"] + "/{}_{}/".format(config["strain"], config["date"]),
+        resultsdir = config["resultsdir"] + "/{}_{}".format(config["strain"], config["date"])
+    shadow: "shallow"
+    run:
+        fname = output["backup"].rstrip(".tgz") + ".tar"
+        if os.getcwd().rstrip("/") != params["datadir"].rstrip("/"):
+            shell("tar --exclude='./.snakemake' --dereference -cf {} -C {{params.datadir}} ./".format(fname))
+        else:
+            shell("tar --exclude='./.snakemake' --dereference -cf {} ./".format(fname))
+            try:
+                shell("cp -u ./Snakefile {params.datadir}")
+            except:
+                print(os.getcwd())
+                print(params["datadir"])
+        # mod configfile
+        scrambletools.modConfig("./config.json", params["datadir"])
+        # also copy results
+        shell("mkdir results")
+        shell("cp -R {params.resultsdir} ./results/")
+        shell("tar -rf {} results".format(fname))
+        shell("pigz -p {{threads}} {}".format(fname))
+        shell("mv {} {{output.backup}}".format(fname+".gz"))
+
+rule cleanup:
+    input:
+        backup = config["backupdir"] + "/{}_{}.tgz".format(config["strain"], config["date"]),
+        bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bam".format(config["strain"], config["date"],
+                                                                                                   config["strain"], config["date"]),
+        bed = config["resultsdir"] + "/{}_{}/alignment/{}_{}_porechopped_filtered_canuCorrected_distinguished.bed".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        qc = config["resultsdir"] + "/{}_{}/logs/qc.log".format(config["strain"], config["date"]),
+        stranderror = config["resultsdir"] + "/{}_{}/qc/strandANDerror.txt".format(config["strain"], config["date"]),
+        salmon = config["resultsdir"] + "/{}_{}/salmon/corrected/quant.sf".format(config["strain"], config["date"]),
+        summary = (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"]))
+    output:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+    threads: 1
+    run:
+        shell("echo 'all done' > {output}")

@@ -1,0 +1,17 @@
+{
+  "reads" : "data",
+  "tmpdir" : "tmp",
+  "backupdir" : "backup",
+  "strain" : "JS710",
+  "date" : "test",
+  "lane" : "GA10000",
+  "datadir" : "output/data",
+  "resultsdir" : "output/results",
+  "genomebase" : "genome/JS710_ERCC92",
+  "genome" : "genome/JS710_ERCC92.fasta",
+  "annotations" : "genome/JS710.bed",
+  "flowcell" : "FLO-MIN106",
+  "kit" : "SQK-LSK109",
+  "minimap_optional" : "",
+  "batchsize" : 1
+}

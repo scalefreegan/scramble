@@ -1,0 +1,15 @@
+{
+  "base" : "/location/of/reads",
+  "backupdir" : "/location/to/backip",
+  "strain" : "X",
+  "date" : "today",
+  "lane" : "GA10000",
+  "datadir" : "/location/for/data",
+  "resultsdir" : "/location/for/results",
+  "genomebase" : "/location/of/genome",
+  "genome" : "/location/of/genome.fasta",
+  "annotations" : "/location/of/annotations.bed",
+  "flowcell" : "FLO-MIN106",
+  "kit" : "SQK-LSK109",
+  "minimap_optional" : "-uf"
+}

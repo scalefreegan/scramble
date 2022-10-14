@@ -1,0 +1,389 @@
+# python 3.5
+# should be in nanopore conda env!
+
+import glob
+import os
+import pandas as pd
+import pysam
+import sys
+from snakemake.utils import report
+
+sys.path.append("/g/steinmetz/project/IESY/software/scrambleTools/")
+from scrambleTools import scrambletools
+
+configfile: "config.json"
+
+#deepbinner classify --intra_op_parallelism_threads 72 --native fast5 > classifications
+BARCODES = config["barcodes"]
+
+def getReads(wildcards):
+    tarf = config["datadir"] + "/{}_{}".format(config["strain"], config["date"]) + "/fast5.tgz"
+    print("locating reads")
+    if os.path.isfile(tarf):
+        return("None")
+    else:
+        thisdir = config["base"]
+        reads = glob.glob(thisdir + "/**/*.fast5", recursive=True)
+        #reads = [i.lstrip("./") for i in reads]
+        return(reads)
+
+def getFastq(wildcards):
+    print("locating fastq files")
+    thisdir = config["base"]
+    fastq = glob.glob(thisdir + "/**/*.fastq", recursive=True)
+    #fastq = [i.lstrip("./") for i in fastq]
+    return(fastq)
+
+def getSummary(wildcards):
+    print("locating summary files")
+    thisdir = config["base"]
+    seqsummary = glob.glob(thisdir + "/**/*sequencing_summary*", recursive=True)
+    #seqsummary = [i.lstrip("./") for i in seqsummary]
+    return(seqsummary)
+
+def translateStrain(wildcards):
+    if config["strain"] == "BY4741":
+        return("S288C")
+    elif config["strain"] == "SLS045":
+        return("S288C")
+    else:
+        return(config["strain"])
+
+def translateAnnotations(wildcards):
+    base = "/g/steinmetz/project/IESY/genomes/annotations/scramble/bed/{}_genes.bed"
+    if config["strain"] == "BY4741":
+        return(base.format("S288C"))
+    elif config["strain"] == "SLS045":
+        return(base.format("S288C"))
+    else:
+        return(base.format(config["strain"]))
+
+def getMultiplexedFastq(wildcards):
+    return(config["datadir"] + "/{}_{}/demultiplexed/{}.fastq".format(config["strain"],
+                                                                      config["date"],
+                                                                      wildcards.barcode))
+
+rule all:
+    input:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+
+rule compressReads:
+    input: getReads
+    output: config["datadir"] + "/{}_{}".format(config["strain"], config["date"]) + "/fast5.tgz"
+    threads: 24
+    run:
+        thisdir = os.path.dirname(os.path.commonprefix(input))
+        #print(thisdir)
+        shell("tar --dereference -cf - -C " + thisdir + " . | pigz -p {threads} > {output}")
+
+
+rule mergeFastq:
+    input: getFastq
+    output:
+        (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/fastq/{}_{}.fastq".format(config["strain"], config["date"]))
+    shadow: "shallow"
+    shell:
+        """
+        cat {input} > {output}_tmp &&
+        seqkit seq --rna2dna {output}_tmp > {output}
+        rm {output}_tmp
+        """
+
+rule mergeSeqSummary:
+    input:
+        getSummary
+    output:
+        (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"]))
+    run:
+        df = pd.concat([pd.read_csv(i,sep="\t") for i in input])
+        df.to_csv(output[0], sep = "\t", header = True, index = False)
+
+
+
+checkpoint porechop:
+    input:
+        fastq = (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/fastq/{}_{}.fastq".format(config["strain"], config["date"]))
+    output:
+        fastqout = [config["datadir"] + "/{}_{}/demultiplexed/{}.fastq".format(config["strain"], config["date"], i) for i in BARCODES],
+        table = config["datadir"] + "/{}_{}/tables/{}_{}_pass_porechopped.table".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        log = config["datadir"] + "/{}_{}/logs/porechop.log".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    params:
+        demulti = config["datadir"] + "/{}_{}/demultiplexed".format(config["strain"], config["date"])
+    threads: 24
+    run:
+        def grepTable(x, word = ""):
+            regex = re.compile(word)
+            with open(x,'r') as f:
+                for i in f.readlines():
+                    if re.search(regex, i):
+                        return(True)
+            return(False)
+
+        if os.stat(input["fastq"]).st_size > 0:
+            shell(
+                "/g/steinmetz/brooks/anaconda/envs/nanopore/bin/porechop -i {input.fastq} " +
+            	"-b {params.demulti} " +
+            	"--threads {threads} " +
+                "--extra_end_trim 0 " +
+                "--discard_middle  " +
+            	"--verbosity 4 > {output.table}_tmp"
+            )
+            if grepTable(output["table"]+"_tmp","^<table>$"):
+                shell(
+                    "csplit {output.table}_tmp '/^<table>$/' '{{1}}'"
+                )
+                if os.path.isfile("xx01"):
+                    shell(
+                        "mv xx01 {output.table} && " +
+                        "cat xx00 xx02 > {output.log} && " +
+                        "rm xx* {output.table}_tmp"
+                    )
+            else:
+                shell("mv {output.table}_tmp {output.table}")
+        shell("touch {output}")
+
+rule qc:
+    input:
+        (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"]))
+    output:
+        log = config["resultsdir"] + "/{}_{}/logs/qc.log".format(config["strain"], config["date"])
+    params:
+        minionqc = "/g/steinmetz/project/IESY/software/nanotools/minion_qc/MinIONQC.R",
+        outdir = config["resultsdir"] + "/{}_{}/qc/".format(config["strain"], config["date"])
+    threads: 1
+    shell:
+        #"conda activate nanopore; "
+        "mkdir -p {params.outdir}; "
+        "Rscript {params.minionqc} -p {threads} -i {input} -o {params.outdir} && "
+        "echo 'qc finished' > {output.log}"
+
+rule correct:
+    input:
+        config["datadir"] + "/{}_{}/demultiplexed/{{barcode}}.fastq".format(config["strain"], config["date"])
+    output:
+        fastaout = config["datadir"] + "/{}_{}/fastq/{}_{}_{{barcode}}_pass_porechopped_corrected.fasta".format(config["strain"],
+                                                                                                                config["date"],
+                                                                                                                config["strain"],
+                                                                                                                config["date"])
+    threads: 24
+    shadow: "shallow"
+    run:
+        if os.stat(input[0]).st_size > 0:
+            shell(
+                "/g/steinmetz/brooks/git/canu/Linux-amd64/bin/canu -correct " +
+                     "-nanopore-raw " +
+                     "{input} " +
+                     "-p canu_{}_{}_{} ".format(config["strain"], config["date"], str(wildcards.barcode)) +
+                     "-d canu_{}_{}_{} ".format(config["strain"], config["date"], str(wildcards.barcode)) +
+                     "minReadLength=200 " + #are these actually used?
+                     "minOverlapLength=150 " + #are these actually used?
+                     "genomeSize=12M " +
+                     "maxThreads={threads} " +
+                     "useGrid=False " +
+                     "corErrorRate=0.3 " +
+                     "corMinEvidenceLength=150 " +
+                     "corMinCoverage=0 " +
+                     "corOutCoverage=100000 " +
+                     "overlapper=minimap " +
+                     "stopOnLowCoverage=0"
+            )
+            shell("gunzip canu_{}_{}_{}/canu_{}_{}_{}.correctedReads.fasta.gz".format(config["strain"],
+                                                                                config["date"],
+                                                                                str(wildcards.barcode),
+                                                                                config["strain"],
+                                                                                config["date"],
+                                                                                str(wildcards.barcode)))
+            shell("mv canu_{}_{}_{}/canu_{}_{}_{}.correctedReads.fasta {}".format(config["strain"],
+                                                                                config["date"],
+                                                                                str(wildcards.barcode),
+                                                                                config["strain"],
+                                                                                config["date"],
+                                                                                str(wildcards.barcode),
+                                                                                output["fastaout"]))
+        else:
+            shell("touch {output.fastaout}")
+
+rule minimapIndex:
+    input: config["genome"]
+    output: config["genomebase"] + ".mmi"
+    run:
+        "minimap2 -d {output} {input}"
+
+rule align:
+    input:
+        fasta1 = config["datadir"] + "/{}_{}/fastq/{}_{}_{{barcode}}_pass_porechopped_corrected.fasta".format(config["strain"],
+                                                                                                              config["date"],
+                                                                                                              config["strain"],
+                                                                                                              config["date"]),
+        fastq2 = config["datadir"] + "/{}_{}/demultiplexed/{{barcode}}.fastq".format(config["strain"], config["date"])
+    output:
+        bam1 = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        bam2 = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_original.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    threads: 24
+    params:
+        genome = config["genome"],
+        nsup = 50,
+        optional = config["minimap_optional"]
+    shell:
+        "minimap2 -ax splice -k14 -t {threads} -N {params.nsup} "
+        "{params.optional} {params.genome} -G 1500 "
+    	"{input.fasta1} | samtools view -bS - | samtools sort - -o {output.bam1} && "
+        "samtools index {output.bam1} && "
+        "samtools stats {output.bam1} > {output.bam1}.stats && "
+        "minimap2 -ax splice -k14 -t {threads} -N {params.nsup} "
+        "{params.optional} {params.genome} -G 1500 "
+    	"{input.fastq2} | samtools view -bS - | samtools sort - -o {output.bam2} && "
+        "samtools index {output.bam2} && "
+        "samtools stats {output.bam2} > {output.bam2}.stats"
+
+rule countStrandError:
+    input:
+        original_bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_original.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        corrected_bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected.bam".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"])
+    output:
+        config["resultsdir"] + "/{}_{}/qc/{{barcode}}_strandANDerror.txt".format(config["strain"], config["date"])
+    threads: 1
+    params:
+        original_bamstats = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_original.bam.stats".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        corrected_bamstats = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected.bam.stats".format(config["strain"], config["date"],
+                                                                             config["strain"], config["date"]),
+        annotations = translateAnnotations,
+        strain = translateStrain
+    run:
+        print(params.strain)
+        scrambletools.countStrandError(input.original_bam, params.original_bamstats,
+                     input.corrected_bam, params.corrected_bamstats,
+                     params.annotations, params.strain, save = output[0])
+
+
+rule distinguish:
+    input:
+        bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected.bam".format(config["strain"],
+                                                                                                                 config["date"],
+                                                                                                                 config["strain"],
+                                                                                                                 config["date"])
+    output:
+        bam = config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected_distinguished.bam".format(config["strain"],
+                                                                                                                              config["date"],
+                                                                                                                              config["strain"],
+                                                                                                                              config["date"])
+    threads: 1
+    shadow: "shallow"
+    run:
+        if os.stat(input["bam"]).st_size > 0:
+            inbam = pysam.AlignmentFile(input["bam"], "rb", check_sq=False)
+            if inbam.count() > 0:
+                scrambletools.bestScoreSam(input["bam"], "tmp.bam")
+                cmd = ["samtools", "sort", "tmp.bam", "-o", output["bam"]]
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+                stdout, stderr = p.communicate()
+                if p.returncode:
+                    raise ValueError('error: %s' % stderr)
+                cmd2 = ["samtools", "index", output["bam"]]
+                p2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+                stdout, stderr = p2.communicate()
+                if p2.returncode:
+                    raise ValueError('error: %s' % stderr)
+            else:
+                with open(output["bam"], 'w') as f:
+                    f.close()
+        else:
+            shell("touch {output.bam}")
+
+rule bam2bed:
+    input:
+        config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected_distinguished.bam".format(config["strain"],
+                                                                                                                              config["date"],
+                                                                                                                              config["strain"],
+                                                                                                                              config["date"])
+    output:
+        config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected_distinguished.bed".format(config["strain"],
+                                                                                                                              config["date"],
+                                                                                                                              config["strain"],
+                                                                                                                              config["date"])
+
+    shell:
+        "bedtools bamtobed -i {input} "
+        "> {output}"
+
+rule salmonIndex:
+    input: "/g/steinmetz/project/IESY/genomes/annotations/scramble/transcriptomes/{}_ercc_sirv.fasta".format(config["strain"])
+    output: directory(config["resultsdir"] + "/{}_{}/salmonIndex/{}.salmonIndex".format(config["strain"],config["date"],config["strain"]))
+    params:
+        k = 31
+    threads: 1
+    shell:
+        "salmon index -t {input} "
+        "-i {output} "
+        "--threads {threads} -k {params.k}"
+
+rule salmon:
+    input:
+        reads = config["datadir"] + "/{}_{}/fastq/{}_{}_{{barcode}}_pass_porechopped_corrected.fasta".format(config["strain"],
+                                                                                                                config["date"],
+                                                                                                                config["strain"],
+                                                                                                                config["date"]),
+        index = config["resultsdir"] + "/{}_{}/salmonIndex/{}.salmonIndex".format(config["strain"],config["date"],config["strain"])
+    output:
+        config["resultsdir"] + "/{}_{}/salmon/{{barcode}}/quant.sf".format(config["strain"], config["date"])
+    params:
+        mappings = config["resultsdir"] + "/{}_{}/salmon/{{barcode}}/mappings.sam".format(config["strain"], config["date"]),
+        outdir = config["resultsdir"] + "/{}_{}/salmon/{{barcode}}/".format(config["strain"], config["date"])
+    threads: 24
+    shell:
+        "salmon quant -i {input.index} "
+        "-l MSF "
+        "-r {input.reads} "
+        "--dumpEq "
+        "--writeMappings={params.mappings} "
+        "--numBootstraps 100 "
+        "--validateMappings "
+        "--minAssignedFrags 1 "
+        "-p {threads} "
+        "-o {params.outdir}"
+
+rule cleanup:
+    input:
+        reads = config["datadir"] + "/{}_{}".format(config["strain"], config["date"]) + "/fast5.tgz",
+        bam = expand(config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected_distinguished.bam".format(config["strain"],
+                                                                                                                 config["date"],
+                                                                                                                 config["strain"],
+                                                                                                                 config["date"]),
+                                                                                                                 barcode = BARCODES),
+        bed = expand(config["resultsdir"] + "/{}_{}/alignment/{}_{}_{{barcode}}_pass_porechopped_corrected_distinguished.bed".format(config["strain"],
+                                                                                                                 config["date"],
+                                                                                                                 config["strain"],
+                                                                                                                 config["date"]),
+                                                                                                                 barcode = BARCODES),
+        qc = config["resultsdir"] + "/{}_{}/logs/qc.log".format(config["strain"], config["date"]),
+        salmon = expand(config["resultsdir"] + "/{}_{}/salmon/{{barcode}}/quant.sf".format(config["strain"], config["date"]),
+                        barcode = BARCODES),
+        stranderror = expand(config["resultsdir"] + "/{}_{}/qc/{{barcode}}_strandANDerror.txt".format(config["strain"],
+                                                                                                      config["date"]),
+                                                                                                      barcode = BARCODES),
+        summary = (config["datadir"] + "/{}_{}".format(config["strain"],config["date"])
+            + "/{}_{}_sequencing_summary.txt".format(config["strain"], config["date"]))
+    output:
+        config["resultsdir"] + "/{}_{}/logs/done.log".format(config["strain"], config["date"])
+    params:
+        datadir = config["datadir"] + "/{}_{}".format(config["strain"], config["date"]),
+        backupdir = config["backupdir"] + "/{}_{}".format(config["strain"], config["date"])
+    threads: 24
+    run:
+        if os.getcwd() != params["datadir"]:
+            shell("cp -u ./Snakefile ./config.json {params.datadir}")
+        shell("tar --dereference -cf - -C {params.datadir} . | pigz -p {threads} > {params.backupdir}.tgz")
+        shell("echo 'all done' > {output}")

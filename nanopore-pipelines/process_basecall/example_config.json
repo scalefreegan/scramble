@@ -1,0 +1,16 @@
+{
+  "reads" : "/g/steinmetz/project/IESY/sequencing/Data/minION/teloprime/a2f5a1a1d06d86264f5d0436078ea68943c7f86c_JS710/fast5",
+  "tmpdir" : "/scratch/brooks/tmp",
+  "backupdir" : "/g/tier2/steinmetz/project/IESY/sequencing/data/minion/RNA/teloprime",
+  "strain" : "JS710",
+  "date" : "20180712",
+  "lane" : "GA10000",
+  "datadir" : "/g/steinmetz/project/IESY/sequencing/Data/minION/teloprime",
+  "resultsdir" : "/g/steinmetz/project/IESY/sequencing/Results/minION/teloprime",
+  "genomebase" : "/g/steinmetz/project/IESY/genomes/synIXR_scramble/JS710_ERCC92",
+  "genome" : "/g/steinmetz/project/IESY/genomes/synIXR_scramble/JS710_ERCC92.fasta",
+  "annotations" : "/g/steinmetz/project/IESY/genomes/annotations/scramble/bed/JS710.bed",
+  "flowcell" : "FLO-MIN106",
+  "kit" : "SQK-LSK109",
+  "minimap_optional" : ""
+}
