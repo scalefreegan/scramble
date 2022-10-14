@@ -1,0 +1,524 @@
+[
+    {
+        "id": "BY4741",
+        "name": "BY4741",
+        "fastaURL": "https://s3.embl.de/igv-webapp/full/genomes/S288C.fasta",
+        "indexURL": "https://s3.embl.de/igv-webapp/full/genomes/S288C.fasta.fai",
+        "locus": "chrI_1:1-15000",
+        "tracks": [
+            {
+                "name": "Gutierrez 2017, MNase-seq",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Gutierrez_2017_unambiguous-naked_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Pelechano 2013, mTIFs",
+                "type": "annotation",
+                "format": "bigBed",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Pelechano_2013_mTIFs.bb",
+                "nameField": false,
+                "order": 2
+            },
+            {
+                "name": "Direct RNA",
+                "type": "alignment",
+                "format": "bam",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/longread/S288C.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/longread/S288C.bam.bai",
+                "colorBy": "strand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 3
+            },
+            {
+                "name": "TrueSeq",
+                "type": "alignment",
+                "format": "bam",
+                "viewAsPairs": true,
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/shortread/S288C_3.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/shortread/S288C_3.bam.bai",
+                "colorBy": "firstOfPairStrand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 4
+            },
+            {
+                "name": "Segments",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/S288C_segments.bed",
+                "indexed": false,
+                "order": 5
+            },
+            {
+                "name": "Genes",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/S288C_genes.bed",
+                "indexed": false,
+                "searchable": true,
+                "order": 6
+            }
+        ]
+    },
+    {
+        "id": "SLS045",
+        "name": "SLS045",
+        "fastaURL": "https://s3.embl.de/igv-webapp/full/genomes/S288C.fasta",
+        "indexURL": "https://s3.embl.de/igv-webapp/full/genomes/S288C.fasta.fai",
+        "locus": "chrI_1:1-15000",
+        "tracks": [
+            {
+                "name": "Gutierrez 2017, MNase-seq",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Gutierrez_2017_unambiguous-naked_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Kaplan 2009",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Kaplan_2009_YPD_nucleosome_occupancy_map_dMean_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Pelechano 2013, mTIFs",
+                "type": "annotation",
+                "format": "bigBed",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Pelechano_2013_mTIFs.bb",
+                "nameField": false,
+                "order": 2
+            },
+            {
+                "name": "Direct RNA",
+                "type": "alignment",
+                "format": "bam",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/longread/S288C.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/longread/S288C.bam.bai",
+                "colorBy": "strand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 3
+            },
+            {
+                "name": "TrueSeq",
+                "type": "alignment",
+                "format": "bam",
+                "viewAsPairs": true,
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/shortread/S288C_3.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/shortread/S288C_3.bam.bai",
+                "colorBy": "firstOfPairStrand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 4
+            },
+            {
+                "name": "Segments",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/S288C_segments.bed",
+                "indexed": false,
+                "order": 5
+            },
+            {
+                "name": "Genes",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/S288C_genes.bed",
+                "indexed": false,
+                "searchable": true,
+                "order": 6
+            }
+        ]
+    },
+    {
+        "id": "JS94",
+        "name": "JS94",
+        "fastaURL": "https://s3.embl.de/igv-webapp/full/genomes/JS94.fasta",
+        "indexURL": "https://s3.embl.de/igv-webapp/full/genomes/JS94.fasta.fai",
+        "locus": "JS94_1:1-15000",
+        "tracks": [
+            {
+                "name": "Gutierrez 2017, MNase-seq",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Gutierrez_2017_unambiguous-naked_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Kaplan 2009",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Kaplan_2009_YPD_nucleosome_occupancy_map_dMean_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Pelechano 2013, mTIFs",
+                "type": "annotation",
+                "format": "bigBed",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Pelechano_2013_mTIFs.bb",
+                "nameField": false,
+                "order": 2
+            },
+            {
+                "name": "Direct RNA",
+                "type": "alignment",
+                "format": "bam",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/longread/JS94.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/longread/JS94.bam.bai",
+                "colorBy": "strand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 3
+            },
+            {
+                "name": "TrueSeq",
+                "type": "alignment",
+                "format": "bam",
+                "viewAsPairs": true,
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/shortread/JS94_3.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/shortread/JS94_3.bam.bai",
+                "colorBy": "firstOfPairStrand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 4
+            },
+            {
+                "name": "Segments",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS94_segments.bed",
+                "indexed": false,
+                "order": 5
+            },
+            {
+                "name": "Genes",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS94_genes.bed",
+                "indexed": false,
+                "searchable": true,
+                "order": 6
+            }
+        ]
+    },
+    {
+        "id": "JS710",
+        "name": "JS710",
+        "fastaURL": "https://s3.embl.de/igv-webapp/full/genomes/JS710.fasta",
+        "indexURL": "https://s3.embl.de/igv-webapp/full/genomes/JS710.fasta.fai",
+        "locus": "JS710_1:1-15000",
+        "tracks": [
+            {
+                "name": "Gutierrez 2017, MNase-seq",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Gutierrez_2017_unambiguous-naked_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Kaplan 2009",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Kaplan_2009_YPD_nucleosome_occupancy_map_dMean_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Pelechano 2013, mTIFs",
+                "type": "annotation",
+                "format": "bigBed",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Pelechano_2013_mTIFs.bb",
+                "nameField": false,
+                "order": 2
+            },
+            {
+                "name": "Direct RNA",
+                "type": "alignment",
+                "format": "bam",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/longread/JS710.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/longread/JS710.bam.bai",
+                "colorBy": "strand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 3
+            },
+            {
+                "name": "TrueSeq",
+                "type": "alignment",
+                "format": "bam",
+                "viewAsPairs": true,
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/shortread/JS710_3.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/shortread/JS710_3.bam.bai",
+                "colorBy": "firstOfPairStrand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 4
+            },
+            {
+                "name": "Segments",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS710_segments.bed",
+                "indexed": false,
+                "order": 5
+            },
+            {
+                "name": "Genes",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS710_genes.bed",
+                "indexed": false,
+                "searchable": true,
+                "order": 6
+            }
+        ]
+    },
+    {
+        "id": "JS731",
+        "name": "JS731",
+        "fastaURL": "https://s3.embl.de/igv-webapp/full/genomes/JS731.fasta",
+        "indexURL": "https://s3.embl.de/igv-webapp/full/genomes/JS731.fasta.fai",
+        "locus": "JS731_1:1-15000",
+        "tracks": [
+            {
+                "name": "Gutierrez 2017, MNase-seq",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Gutierrez_2017_unambiguous-naked_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Kaplan 2009",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Kaplan_2009_YPD_nucleosome_occupancy_map_dMean_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Pelechano 2013, mTIFs",
+                "type": "annotation",
+                "format": "bigBed",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Pelechano_2013_mTIFs.bb",
+                "nameField": false,
+                "order": 2
+            },
+            {
+                "name": "Direct RNA",
+                "type": "alignment",
+                "format": "bam",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/longread/JS731.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/longread/JS731.bam.bai",
+                "colorBy": "strand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 3
+            },
+            {
+                "name": "TrueSeq",
+                "type": "alignment",
+                "format": "bam",
+                "viewAsPairs": true,
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/shortread/JS731_3.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/shortread/JS731_3.bam.bai",
+                "colorBy": "firstOfPairStrand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 4
+            },
+            {
+                "name": "Segments",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS731_segments.bed",
+                "indexed": false,
+                "order": 5
+            },
+            {
+                "name": "Genes",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS731_genes.bed",
+                "indexed": false,
+                "searchable": true,
+                "order": 6
+            }
+        ]
+    },
+    {
+        "id": "JS734",
+        "name": "JS734",
+        "fastaURL": "https://s3.embl.de/igv-webapp/full/genomes/JS734.fasta",
+        "indexURL": "https://s3.embl.de/igv-webapp/full/genomes/JS734.fasta.fai",
+        "locus": "JS734_1:1-15000",
+        "tracks": [
+            {
+                "name": "Gutierrez 2017, MNase-seq",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Gutierrez_2017_unambiguous-naked_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Kaplan 2009",
+                "type": "wig",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Kaplan_2009_YPD_nucleosome_occupancy_map_dMean_V64.bw",
+                "order": 1
+            },
+            {
+                "name": "Pelechano 2013, mTIFs",
+                "type": "annotation",
+                "format": "bigBed",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/other/Pelechano_2013_mTIFs.bb",
+                "nameField": false,
+                "order": 2
+            },
+            {
+                "name": "Direct RNA",
+                "type": "alignment",
+                "format": "bam",
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/longread/JS734.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/longread/JS734.bam.bai",
+                "colorBy": "strand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 3
+            },
+            {
+                "name": "TrueSeq",
+                "type": "alignment",
+                "format": "bam",
+                "viewAsPairs": true,
+                "displayMode": "SQUISHED",
+                "url": "https://s3.embl.de/igv-webapp/full/data/shortread/JS734_3.bam",
+                "indexURL": "https://s3.embl.de/igv-webapp/full/data/shortread/JS734_3.bam.bai",
+                "colorBy": "firstOfPairStrand",
+                "showMismatches": false,
+                "deletionColor": "rgba(250, 250, 250,0)",
+                "insertionColor": "rgba(138, 94, 161,0)",
+                "sort": {
+                    "chr": "chrI",
+                    "position": 1,
+                    "option": "BASE",
+                    "direction": "ASC"
+                },
+                "order": 4
+            },
+            {
+                "name": "Segments",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS734_segments.bed",
+                "indexed": false,
+                "order": 5
+            },
+            {
+                "name": "Genes",
+                "type": "annotation",
+                "format": "bed",
+                "displayMode": "EXPANDED",
+                "url": "https://s3.embl.de/igv-webapp/full/annotation/JS734_genes.bed",
+                "indexed": false,
+                "searchable": true,
+                "order": 6
+            }
+        ]
+    }
+]

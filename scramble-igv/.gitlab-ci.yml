@@ -1,0 +1,14 @@
+stages:
+  - buildimage
+
+Build Image:
+  image:
+    name:  gcr.io/kaniko-project/executor:v1.6.0-debug
+    entrypoint: [""]
+  stage: buildimage
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --registry-mirror regmirror.embl.de  --cache=true --context $CI_PROJECT_DIR --dockerfile Dockerfile --destination $CI_REGISTRY_IMAGE/scramble-igv:$CI_COMMIT_SHORT_SHA
+  only:
+    refs:
+      - master
